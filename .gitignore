@@ -211,3 +211,5 @@ __marimo__/
 .env
 .idea/
 .DS_Store
+
+*.html
