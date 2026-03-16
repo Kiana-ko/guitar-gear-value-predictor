@@ -41,37 +41,71 @@ retention = (predicted / price) * 100
 print(f"\nPredicted resale price: ${predicted:,.2f}")
 print(f"Estimated retention:    {retention:.1f}%")
 
-# ── CLAUDE API — VALUATION REPORT ────────────
+# ── CLAUDE API — SMART VALUATION REPORT ──────
 
-# load_dotenv() already loaded the key from .env
-# anthropic.Anthropic() automatically reads ANTHROPIC_API_KEY from environment
 client = anthropic.Anthropic()
 
-prompt = f"""You are an expert guitar gear appraiser. Based on the following data, write a 
-short 3-paragraph valuation report for a seller. Be specific, practical, and helpful.
+# EDA findings hardcoded from analysis.py results
+brand_retention_data = {
+    'PRS': 60.7, 'Gibson': 54.6, 'Martin': 51.9, 'Taylor': 49.3,
+    'Fender': 46.2, 'Orange': 44.0, 'Fender (Amp)': 42.3,
+    'Marshall': 39.2, 'Ibanez': 36.3, 'Seymour Duncan': 32.8,
+    'Electro-Harmonix': 26.2, 'Boss': 24.3, 'Epiphone': 23.3,
+    'Squier': 20.9, 'DiMarzio': 19.8
+}
+
+brand_avg = brand_retention_data.get(brand, 40.0)
+diff      = retention - brand_avg
+direction = "above" if diff > 0 else "below"
+
+# ── PROMPT 1: SMART VALUATION WITH EDA REASONING ──
+
+prompt_valuation = f"""You are an expert guitar gear appraiser with access to market data.
+
+EDA Market Data:
+- {brand}'s average resale retention across all listings: {brand_avg:.1f}%
+- This specific listing's predicted retention: {retention:.1f}%
+- Difference: {abs(diff):.1f}% {direction} the brand average
 
 Gear details:
-- Brand: {brand}
-- Type: {gear_type}
-- Condition: {condition}
-- Age: {age} years
-- Original price: ${price:,.2f}
+- Brand: {brand} | Type: {gear_type} | Condition: {condition}
+- Age: {age} years | Original price: ${price:,.2f}
 - Predicted resale price: ${predicted:,.2f}
-- Value retention: {retention:.1f}%
 
-Paragraph 1: Assess the predicted resale value and what it means for this specific brand and gear type.
-Paragraph 2: Explain what factors (condition, age, brand reputation) are most influencing this valuation.
-Paragraph 3: Give 2-3 practical tips for maximizing sale price."""
+Write a 3-paragraph valuation report:
+Paragraph 1: Explain why this listing is {abs(diff):.1f}% {direction} {brand}'s average retention of {brand_avg:.1f}%. Be specific about which factors are driving this deviation.
+Paragraph 2: Assess whether ${predicted:,.2f} is a fair asking price given the brand's market position.
+Paragraph 3: Give 2-3 concrete tips to maximize sale price for this specific listing."""
 
 print("\n" + "=" * 50)
 print("AI VALUATION REPORT")
 print("=" * 50)
 
-message = client.messages.create(
+response1 = client.messages.create(
     model="claude-haiku-4-5-20251001",
     max_tokens=500,
-    messages=[{"role": "user", "content": prompt}]
+    messages=[{"role": "user", "content": prompt_valuation}]
 )
+print(response1.content[0].text)
 
-print(message.content[0].text)
+# ── PROMPT 2: MARKET TREND ANALYSIS ───────────
+
+prompt_trends = f"""You are a guitar gear market analyst. Here is brand retention data from a resale price dataset:
+
+{chr(10).join([f"- {b}: {r:.1f}% retention" for b, r in sorted(brand_retention_data.items(), key=lambda x: -x[1])])}
+
+Write a brief 2-paragraph market trend analysis:
+Paragraph 1: What patterns do you see in which brands hold value best vs worst? What does this tell us about the guitar gear resale market?
+Paragraph 2: For someone buying gear today with resale value in mind, what are your top 2-3 recommendations based on this data?"""
+
+print("\n" + "=" * 50)
+print("MARKET TREND ANALYSIS")
+print("=" * 50)
+
+response2 = client.messages.create(
+    model="claude-haiku-4-5-20251001",
+    max_tokens=400,
+    messages=[{"role": "user", "content": prompt_trends}]
+)
+print(response2.content[0].text)
 print("\n✅ Done!")
